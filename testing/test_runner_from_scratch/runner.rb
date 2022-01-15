@@ -19,27 +19,52 @@ rescue StandardError => e
                                .join("\n")
 end
 
-def expect(actual)
-  Actual.new(actual)
+def expect(actual = nil, &block)
+  Actual.new(actual || block)
 end
 
-def eq(expected)
-  Expectation::Equal.new(expected)
+def eq(expected_value)
+  Expectations::Equal.new(expected_value)
 end
 
-module Expectation
+def raise_error(exception_class)
+  Expectations::Error.new(exception_class)
+end
+
+module Expectations
   class Equal
-    def initialize(expected)
-      @expected = expected
+    def initialize(expected_value)
+      @expected_value = expected_value
     end
 
     def run(actual)
-      raise AssertionError, "Expected #{expected.inspect} but got #{actual.inspect}" unless actual == expected
+      unless actual == expected_value
+        raise AssertionError,
+              "Expected #{expected_value.inspect} but got #{actual.inspect}"
+      end
     end
 
     private
 
-    attr_reader :expected
+    attr_reader :expected_value
+  end
+
+  class Error
+    def initialize(exception_class)
+      @exception_class = exception_class
+    end
+
+    def run(actual_block)
+      actual_block.call
+    rescue exception_class
+      nil
+    rescue StandardError => e
+      raise AssertionError, format('Expected to see error %s, but saw %s', exception_class.inspect, e.inspect)
+    end
+
+    private
+
+    attr_reader :exception_class
   end
 end
 
@@ -48,8 +73,8 @@ class Actual
     @actual = actual
   end
 
-  def to(expectation)
-    expectation.run(@actual)
+  def to(expected_expectation)
+    expected_expectation.run(actual)
   end
 
   attr_reader :actual
@@ -57,19 +82,19 @@ end
 
 class AssertionError < RuntimeError; end
 
-# class ComparisonAssertion
-#   def initialize(actual)
-#     @actual = actual
-#   end
+class ComparisonAssertion
+  def initialize(actual)
+    @actual = actual
+  end
 
-#   def ==(other)
-#     raise AssertionError, "Expected #{other.inspect} but got #{actual.inspect}" unless actual == other
-#   end
+  def ==(other)
+    raise AssertionError, "Expected #{other.inspect} but got #{actual.inspect}" unless actual == other
+  end
 
-#   private
+  private
 
-#   attr_reader :actual
-# end
+  attr_reader :actual
+end
 
 class Object
   def should
